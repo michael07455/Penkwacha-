@@ -1,0 +1,9 @@
+{
+  "name": "PenKwacha",
+  "short_name": "PenKwacha",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#12172B",
+  "theme_color": "#12172B",
+  "icons": []
+}
