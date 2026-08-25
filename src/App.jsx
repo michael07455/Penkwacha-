@@ -410,4 +410,198 @@ function PostJobSheet({ profile, onClose, onPosted }) {
                   <input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="Amount" inputMode="numeric"
                     className="flex-1 bg-[#1B2138] border border-white/10 rounded-lg px-3 py-3 text-[#F3ECDD] text-sm outline-none focus:border-[#C97A44]" />
                   <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="bg-[#1B2138] border border-white/10 rounded-lg px-2 text-[#F3ECDD] text-sm">
-                    <option>ZMW</option><option>USDT</option><option>ETH</option><option>BNB</option
+                    <option>ZMW</option><option>USDT</option><option>ETH</option><option>BNB</option</select>
+                </div>
+                <input value={deadline} onChange={(e) => setDeadline(e.target.value)} placeholder="Deadline (e.g. 5 days)"
+                  className="w-full bg-[#1B2138] border border-white/10 rounded-lg px-3 py-3 text-[#F3ECDD] text-sm outline-none focus:border-[#C97A44] mt-2" />
+              </div>
+            )}
+            {step === 2 && (
+              <div>
+                <h3 className="text-[#F3ECDD] text-base font-medium mb-1">Brief</h3>
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={6} placeholder="Describe the work…"
+                  className="w-full bg-[#1B2138] border border-white/10 rounded-lg px-3 py-3 text-[#F3ECDD] text-sm outline-none focus:border-[#C97A44] resize-none mt-3" />
+              </div>
+            )}
+            {error && <p className="text-[#E3A857] text-xs mt-3">{error}</p>}
+            <button onClick={() => step < 2 ? setStep(step + 1) : submit()} disabled={saving}
+              className="w-full flex items-center justify-center gap-2 bg-[#C97A44] disabled:opacity-60 text-[#12172B] rounded-lg py-3 mt-6 text-sm font-medium active:scale-95 transition">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : step < 2 ? "Continue" : "Post job"} {!saving && <ChevronRight size={14} />}
+            </button>
+          </>
+        ) : (
+          <div className="flex flex-col items-center text-center pt-10">
+            <HandaSeal size={40} />
+            <h3 className="text-[#F3ECDD] text-lg mt-4" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600 }}>Job posted</h3>
+            <p className="text-[#8891A6] text-sm mt-2 max-w-[26ch]">It's live in the database now — writers can bid on it.</p>
+            <button onClick={onClose} className="bg-[#1B2138] border border-white/10 text-[#F3ECDD] rounded-lg py-2.5 px-6 mt-6 text-sm active:scale-95 transition">Done</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WalletSheet({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-30 bg-[#12172B] flex flex-col">
+      <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-white/5">
+        <button onClick={onClose} className="p-1 -ml-1"><X size={20} color="#F3ECDD" /></button>
+        <span className="text-[#F3ECDD] text-sm font-medium">How escrow works</span>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-5">
+        <div className="flex items-start gap-2 bg-[#3FA77E]/10 border border-[#3FA77E]/20 rounded-xl p-4">
+          <ShieldCheck size={18} color="#3FA77E" className="shrink-0 mt-0.5" />
+          <p className="text-[#5FC59A] text-sm leading-relaxed">
+            Payments are currently handled manually while PenKwacha is early: once a bid is accepted,
+            the client sends payment directly (mobile money or crypto) and it's released to the writer
+            on approval. Automated in-app escrow is the next thing we build once there's real volume.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BottomNav({ tab, setTab, onPost }) {
+  const items = [
+    { id: "jobs", label: "Jobs", icon: Briefcase },
+    { id: "writers", label: "Writers", icon: User },
+    { id: "post", label: "Post", icon: Plus, isAction: true },
+    { id: "search", label: "Search", icon: Search },
+  ];
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-[#1B2138]/95 backdrop-blur border-t border-white/5 flex items-center justify-around py-2 px-2">
+      {items.map((it) => {
+        const Icon = it.icon;
+        if (it.isAction) {
+          return (
+            <button key={it.id} onClick={onPost} className="flex flex-col items-center justify-center -mt-6">
+              <div className="w-12 h-12 rounded-full bg-[#C97A44] flex items-center justify-center shadow-lg active:scale-90 transition">
+                <Icon size={20} color="#12172B" />
+              </div>
+            </button>
+          );
+        }
+        const active = tab === it.id;
+        return (
+          <button key={it.id} onClick={() => setTab(it.id)} className="flex flex-col items-center gap-1 px-3 py-1">
+            <Icon size={18} color={active ? "#C97A44" : "#8891A6"} />
+            <span className={`text-[10px] ${active ? "text-[#C97A44]" : "text-[#8891A6]"}`}>{it.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MainApp({ session, profile }) {
+  const [tab, setTab] = useState("jobs");
+  const [jobs, setJobs] = useState([]);
+  const [writers, setWriters] = useState([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
+  const [loadingWriters, setLoadingWriters] = useState(true);
+  const [activeJob, setActiveJob] = useState(null);
+  const [showPost, setShowPost] = useState(false);
+  const [showWallet, setShowWallet] = useState(false);
+
+  async function loadJobs() {
+    setLoadingJobs(true);
+    const { data } = await supabase.from("jobs").select("*").order("created_at", { ascending: false });
+    setJobs(data || []);
+    setLoadingJobs(false);
+  }
+  async function loadWriters() {
+    setLoadingWriters(true);
+    const { data } = await supabase.from("profiles").select("*").eq("role", "writer");
+    setWriters(data || []);
+    setLoadingWriters(false);
+  }
+
+  useEffect(() => { loadJobs(); loadWriters(); }, []);
+
+  return (
+    <div className="w-full min-h-screen bg-[#12172B] flex justify-center">
+      <style>{FONT_IMPORT}</style>
+      <div className="w-full max-w-[420px] min-h-screen bg-[#12172B] relative flex flex-col">
+        <TopBar profile={profile} onWallet={() => setShowWallet(true)} onLogout={() => supabase.auth.signOut()} />
+
+        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24">
+          {tab === "jobs" && (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-[#F3ECDD] text-sm font-medium">
+                  {profile.role === "writer" ? "Open jobs" : "All jobs"}
+                </h2>
+                <span className="text-[#8891A6] text-xs">{jobs.length} total</span>
+              </div>
+              {loadingJobs ? <Loading label="Loading jobs…" /> : jobs.length === 0 ? (
+                <p className="text-[#8891A6] text-sm text-center py-10">No jobs yet — be the first to post one.</p>
+              ) : jobs.map((j) => <JobCard key={j.id} job={j} onOpen={setActiveJob} />)}
+            </>
+          )}
+          {tab === "writers" && (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-[#F3ECDD] text-sm font-medium">Writers on PenKwacha</h2>
+                <span className="text-[#8891A6] text-xs">{writers.length} shown</span>
+              </div>
+              {loadingWriters ? <Loading label="Loading writers…" /> : writers.length === 0 ? (
+                <p className="text-[#8891A6] text-sm text-center py-10">No writers signed up yet.</p>
+              ) : writers.map((w) => <WriterCard key={w.id} writer={w} />)}
+            </>
+          )}
+          {tab === "search" && (
+            <div className="flex flex-col items-center text-center pt-16">
+              <Search size={28} color="#8891A6" />
+              <p className="text-[#8891A6] text-sm mt-3 max-w-[24ch]">Search coming soon.</p>
+            </div>
+          )}
+        </div>
+
+        <BottomNav tab={tab} setTab={setTab} onPost={() => setShowPost(true)} />
+
+        {activeJob && (
+          <JobDetail job={activeJob} profile={profile} onClose={() => setActiveJob(null)} onBidPlaced={loadJobs} />
+        )}
+        {showPost && (
+          <PostJobSheet profile={profile} onClose={() => { setShowPost(false); loadJobs(); }} onPosted={loadJobs} />
+        )}
+        {showWallet && <WalletSheet onClose={() => setShowWallet(false)} />}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- ROOT ---------------- */
+
+export default function App() {
+  const [session, setSession] = useState(undefined); // undefined = loading
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, sess) => setSession(sess));
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) { setProfile(null); return; }
+    setLoadingProfile(true);
+    supabase.from("profiles").select("*").eq("id", session.user.id).single()
+      .then(({ data }) => { setProfile(data); setLoadingProfile(false); });
+  }, [session]);
+
+  if (session === undefined) {
+    return <div className="w-full min-h-screen bg-[#12172B]"><Loading label="Loading…" /></div>;
+  }
+  if (!session) {
+    return <AuthScreen onAuthed={() => {}} />;
+  }
+  if (loadingProfile || !profile) {
+    return <div className="w-full min-h-screen bg-[#12172B]"><Loading label="Setting up your account…" /></div>;
+  }
+
+  return <MainApp session={session} profile={profile} />;
+}
